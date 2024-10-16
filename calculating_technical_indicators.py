@@ -15,7 +15,7 @@ uploaded = files.upload()
 file_name = next(iter(uploaded))
 df = pd.read_csv(file_name)
 
-#calc macd's
+#calc Moving Average Convergence Divergence
 def macd(df, fastperiod=12, slowperiod=26, signalperiod=9):
     # EMAs
     df['EMA_Fast'] = df['Close'].ewm(span=fastperiod, adjust=False).mean()
@@ -25,20 +25,54 @@ def macd(df, fastperiod=12, slowperiod=26, signalperiod=9):
     df['MACD'] = df['EMA_Fast'] - df['EMA_Slow']
 
     # Signal of MacD
-    df['Signal'] = df['MACD'].ewm(span=signalperiod, adjust=False).mean()
+    df['MACD_Signal'] = df['MACD'].ewm(span=signalperiod, adjust=False).mean()
 
     # MACD - Signal
-    df['MACD_Histogram_Val'] = df['MACD'] - df['Signal']
+    df['MACD_Histogram_Val'] = df['MACD'] - df['MACD_Signal']
 
     return df
 
-#calc rsi
+#calc On-Balance Volume
+def obv(df):
+    df['OBV'] = 0.0
+    for i in range(1, len(df)):
+        if df.loc[i, 'Close'] > df.loc[i - 1, 'Close']:
+            df.loc[i, 'OBV'] = df.loc[i - 1, 'OBV'] + df.loc[i, 'Volume']
+        elif df.loc[i, 'Close'] < df.loc[i - 1, 'Close']:
+            df.loc[i, 'OBV'] = df.loc[i - 1, 'OBV'] - df.loc[i, 'Volume']
+        else:
+            df.loc[i, 'OBV'] = df.loc[i - 1, 'OBV']
+    return df
+
+#calc Relative Strength Index
 def rsi(df, period=14):
-#so on
+    delta = df['Close'].diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+
+    avg_gain = gain.rolling(window=period).mean()
+    avg_loss = loss.rolling(window=period).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+
+    # Assign RSI to the dataframe
+    df['RSI'] = rsi
+
+    return df
+
+def sma(df, period=50):
+    df['SMA'] = df['Close'].rolling(window=period).mean()
+    return df
+
 
 
 
 df = macd(df)
+df = obv(df)
+df = rsi(df)
+df = sma(df)
+
 output_file_name = f' {file_name[:-3]}withIndicators.csv'
 df.to_csv(output_file_name, index=False)
 
